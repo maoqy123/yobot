@@ -52,6 +52,9 @@ class ClanBattle:
         '后台': 15,
         'sl': 16,
         'SL': 16,
+        '合刀': 17,
+        '计算': 18,
+        '清空': 19,
         '查树': 20,
         '查1': 21,
         '查2': 22,
@@ -66,6 +69,9 @@ class ClanBattle:
         '韩': 'kr',
         '国': 'cn',
     }
+
+    GlobalDamage = {}
+
 
     def __init__(self,
                  glo_setting: Dict[str, Any],
@@ -1063,6 +1069,43 @@ class ClanBattle:
             return 0
         return self.Commands.get(cmd[0:2], 0)
 
+    def _boss_solve(self, group_id):
+        group = Clan_group.get_or_none(group_id=group_id)
+        remain = group.boss_health
+        txt_list = ["Boss剩余血量:{}".format(remain)]
+        if len(self.GlobalDamage) != 0:
+            sorted_damage = sorted(self.GlobalDamage.items(), key=lambda d: d[1], reverse=True)
+            re = self.getRe(sorted_damage)
+            txt_list.append("排名:\n{}".format(re))
+        return txt_list
+
+    def _boss_damage_store(self, cmd, group_id, qqid):
+        is_member = Clan_member.get_or_none(
+            group_id=group_id, qqid=qqid)
+        if not is_member:
+            raise GroupError('未加入公会，请先发送“加入公会”')
+        user = User.get_or_create(
+            qqid=qqid,
+            defaults={
+                'clan_group_id': group_id,
+            }
+        )[0]
+        self.GlobalDamage[qqid] = int(cmd)
+        txt_list=["已记录：{} 的伤害为 {}".format(user.nickname, cmd)]
+        return txt_list
+
+    def _boss_damage_clean(self):
+        self.GlobalDamage = {}
+        return "已清空"
+
+    def getRe(self, ls):
+        i = 1
+        re = ""
+        for l in ls:
+            re += "#" + str(i) + " " + l[0] + ":" + str(l[1]) + "\n"
+            i += 1
+        return re
+
     def execute(self, match_num, ctx):
         if ctx['message_type'] != 'group':
             return None
@@ -1318,6 +1361,14 @@ class ClanBattle:
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
             return '已记录SL'
+        elif match_num == 17:
+            if cmd.startswith("合刀"):
+                cmd = cmd[2:]
+            self._boss_damage_store(cmd, group_id, user_id)
+        elif match_num == 18:
+            self._boss_solve(group_id)
+        elif match_num == 19:
+            self._boss_damage_clean()
         elif 20 <= match_num <= 25:
             if len(cmd) != 2:
                 return
