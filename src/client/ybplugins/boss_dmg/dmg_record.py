@@ -27,6 +27,7 @@ class Re_cache:
 
 recache = Re_cache()
 boss_health_cache = None
+damage={}
 
 class Record():
     """
@@ -220,6 +221,38 @@ class Record():
             self._save()
             self._comment += "已记录"
             self._boss_status()
+
+    def _boss_solve(self):
+        global damage
+        remain = self._conf[self._groupid]["remain"]
+        self.txt_list.append("Boss剩余血量:{}".format(remain))
+        if len(damage) != 0:
+            sorted_damage = sorted(damage.items(), key=lambda d: d[1], reverse=True)
+            re = self.getRe(sorted_damage)
+            self.txt_list.append("排名:\n{}".format(re))
+
+    def _boss_damage_store(self, cmd, comment = None):
+        global damage
+        if not (self._qqid in self._data[1].keys()):
+            self._creat_mem()
+            if self._qqid == "unknown":
+                self._comment += "未记录"
+                return
+        damage[self._data[1][self._qqid][0]] = int(self._cmdtoint(cmd))
+        self.txt_list.append("已记录：{} 的伤害为 {}".format(self._data[1][self._qqid][0], cmd))
+
+    def _boss_damage_clean(self):
+        global damage
+        damage = {}
+        self.txt_list.append("已清空")
+
+    def getRe(self, ls):
+        i = 1
+        re = ""
+        for l in ls:
+            re += "#" + str(i) + " " + l[0] + ":" + str(l[1]) + "\n"
+            i += 1
+        return re
 
     def _eliminate(self, comment = None):
         if not (self._qqid in self._data[1].keys()):
@@ -499,6 +532,12 @@ class Record():
             return 15
         elif cmd.endswith("报告"):
             return 16
+        elif cmd.startswith("合刀"):
+            return 17
+        elif cmd.startswith("合刀推荐"):
+            return 18
+        elif cmd.startswith("清空合刀"):
+            return 19
         elif cmd == "查刀":
             return 160
         else:
@@ -588,6 +627,14 @@ class Record():
             self._uploadfile()
         elif func_num == 16:
             self._uploaddaily(cmd[:-2])
+        elif func_num == 17:
+            if cmd.startswith("合刀"):
+                cmd = cmd[2:]
+            self._boss_damage_store(cmd, comment)
+        elif func_num == 18:
+            self._boss_solve()
+        elif func_num == 19:
+            self._boss_damage_clean()
         elif func_num == 160:
             self._uploaddaily("")
         elif func_num == 0:
