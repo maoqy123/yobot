@@ -1074,7 +1074,7 @@ class ClanBattle:
             return 0
         if len(cmd) < 2:
             return 0
-        return self.Commands.get(cmd[0:2]) if self.Commands.get(cmd[0:2]) > self.EnglishCommands.get(cmd) else self.EnglishCommands.get(cmd)
+        return self.Commands.get(cmd[0:2]) if self.Commands.get(cmd[0:2], 0) >= self.EnglishCommands.get(cmd, 0) else self.EnglishCommands.get(cmd, 0)
 
     def _boss_solve(self, group_id):
         group = Clan_group.get_or_none(group_id=group_id)
