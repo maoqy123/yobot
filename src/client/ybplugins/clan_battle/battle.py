@@ -5,7 +5,7 @@ import os
 import random
 import re
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, Mapping
 from urllib.parse import urljoin
 
 import peewee
@@ -61,6 +61,13 @@ class ClanBattle:
         '查3': 23,
         '查4': 24,
         '查5': 25,
+    }
+
+    EnglishCommands = {
+        'status': 3,
+        'score': 9,
+        'solution': 18,
+        'clean': 19
     }
 
     Server = {
@@ -1067,7 +1074,7 @@ class ClanBattle:
             return 0
         if len(cmd) < 2:
             return 0
-        return self.Commands.get(cmd[0:2], 0)
+        return self.Commands.get(cmd[0:2]) if self.Commands.get(cmd[0:2]) > self.EnglishCommands.get(cmd) else self.EnglishCommands.get(cmd)
 
     def _boss_solve(self, group_id):
         group = Clan_group.get_or_none(group_id=group_id)
@@ -1078,26 +1085,40 @@ class ClanBattle:
             res = self.getRe(sorted_damage, group_id)
             txt_list += ("\n伤害排名:\n{}".format(res))
             num = 1
-            for key1 in self.GlobalDamage.keys():
-                for key2 in self.GlobalDamage.keys():
-                    if key1 != key2 and self.GlobalDamage[key1] < int(remain) < self.GlobalDamage[key1] + self.GlobalDamage[key2]:
-                        user1 = User.get_or_create(
-                            qqid=key1,
-                            defaults={
-                                'clan_group_id': group_id,
-                            }
-                        )[0]
-                        user2 = User.get_or_create(
-                            qqid=key2,
-                            defaults={
-                                'clan_group_id': group_id,
-                            }
-                        )[0]
-                        txt_list += ("\n合刀解法{}:\n{}出1刀{}，{}出2刀{},返还时间{}".format(num, user1.nickname, self.GlobalDamage[key1], user2.nickname, self.GlobalDamage[key2], round((1-(int(remain)-self.GlobalDamage[key1])/self.GlobalDamage[key2])*90+10), 2))
-                        num += 1
+            values = sorted(self.GlobalDamage.items(), key=lambda item: item[1])
+            solutions = self._solution(values, int(remain), self.GlobalDamage)
+            for solution in solutions:
+                txt_list += ("\n合刀解法{}:\n".format(num))
+                inner_num = 1
+                remain_num = int(remain)
+                for pid in solution:
+                    user = User.get_or_create(
+                        qqid=pid,
+                        defaults={
+                            'clan_group_id': group_id,
+                        }
+                    )[0]
+                    txt_list += ("{}出{}刀{}，".format(user.nickname, inner_num, self.GlobalDamage[pid]))
+                    if self.GlobalDamage[pid] > remain_num:
+                        time = round(((1-remain_num / self.GlobalDamage[pid])*90+10), 2)
+                        txt_list += ("返还时间{}".format(time))
+                        return
+                    remain_num -= self.GlobalDamage[pid]
+                    inner_num += 1
+                num += 1
             if num == 1:
                 txt_list += "\n没有找到合刀解法"
         return txt_list
+
+    def _rubbish_talk(self, damage):
+        s = "\n=================\n"
+        if damage <= 0:
+            return s + "崽种，又掉刀辣"
+        if 0 < damage < 200000:
+            return s + "你在打nm呢，臭DD"
+        if 200000 <= damage < 300000:
+            return s + "弟弟刀？弟弟刀？弟弟刀？"
+        return ""
 
     def _boss_damage_store(self, cmd, group_id, qqid):
         match = re.match(r'^合刀 ?(\d+)([Ww万Kk千])? *(?:\[CQ:at,qq=(\d+)\])? *(昨[日天])? *(?:[\:：](.*))?$', cmd)
@@ -1130,6 +1151,26 @@ class ClanBattle:
         self.GlobalDamage[int(qqid)] = damage
         txt_list = "已记录：{} 的伤害为 {}".format(user.nickname, damage)
         return txt_list
+
+    def _solution(self, candidates: List[str], target: int, damage: Mapping) -> List[List[str]]:
+        def dfs(begin, path, residue):
+            if residue <= 0:
+                if len(path) > 1:
+                    res.append(path[:])
+                return
+
+            for index in range(begin, size):
+                path.append(candidates[index])
+                dfs(index + 1, path, residue - damage[candidates[index]])
+                path.pop()
+
+        size = len(candidates)
+        if size == 0:
+            return []
+
+        res = []
+        dfs(0, [], target)
+        return res
 
     def _boss_damage_clean(self):
         self.GlobalDamage = {}
@@ -1191,7 +1232,7 @@ class ClanBattle:
                 _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
                 return '{}已加入本公会'.format(atqq(user_id))
         elif match_num == 3:  # 状态
-            if cmd != '状态':
+            if cmd != '状态' and cmd != 'status':
                 return
             try:
                 boss_summary = self.boss_status_summary(group_id)
@@ -1227,7 +1268,7 @@ class ClanBattle:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
-            return str(boss_status)
+            return str(boss_status)+self._rubbish_talk(damage)
         elif match_num == 5:  # 尾刀
             match = re.match(
                 r'^尾刀 ?(?:\[CQ:at,qq=(\d+)\])? *(昨[日天])? *(?:[\:：](.*))?$', cmd)
@@ -1282,7 +1323,7 @@ class ClanBattle:
             )
             return '请登录面板操作：'+url
         elif match_num == 9:  # 报告
-            if len(cmd) != 2:
+            if len(cmd) != 2 and len(cmd) != 5:
                 return
             url = urljoin(
                 self.setting['public_address'],
