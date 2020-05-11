@@ -1072,14 +1072,51 @@ class ClanBattle:
     def _boss_solve(self, group_id):
         group = Clan_group.get_or_none(group_id=group_id)
         remain = group.boss_health
-        txt_list = ["Boss剩余血量:{}".format(remain)]
+        txt_list = "Boss剩余血量:{}".format(remain)
         if len(self.GlobalDamage) != 0:
             sorted_damage = sorted(self.GlobalDamage.items(), key=lambda d: d[1], reverse=True)
-            re = self.getRe(sorted_damage)
-            txt_list.append("排名:\n{}".format(re))
+            res = self.getRe(sorted_damage, group_id)
+            txt_list += ("\n伤害排名:\n{}".format(res))
+            num = 1
+            for key1 in self.GlobalDamage.keys():
+                for key2 in self.GlobalDamage.keys():
+                    if key1 != key2 and self.GlobalDamage[key1] < int(remain) < self.GlobalDamage[key1] + self.GlobalDamage[key2]:
+                        user1 = User.get_or_create(
+                            qqid=key1,
+                            defaults={
+                                'clan_group_id': group_id,
+                            }
+                        )[0]
+                        user2 = User.get_or_create(
+                            qqid=key2,
+                            defaults={
+                                'clan_group_id': group_id,
+                            }
+                        )[0]
+                        txt_list += ("\n合刀解法{}:\n{}出1刀{}，{}出2刀{},返还时间{}".format(num, user1.nickname, self.GlobalDamage[key1], user2.nickname, self.GlobalDamage[key2], round((1-(int(remain)-self.GlobalDamage[key1])/self.GlobalDamage[key2])*90+10), 2))
+                        num += 1
+            if num == 1:
+                txt_list += "\n没有找到合刀解法"
         return txt_list
 
     def _boss_damage_store(self, cmd, group_id, qqid):
+        match = re.match(r'^合刀 ?(\d+)([Ww万Kk千])? *(?:\[CQ:at,qq=(\d+)\])? *(昨[日天])? *(?:[\:：](.*))?$', cmd)
+        if not match:
+            return
+        unit = {
+            'W': 10000,
+            'w': 10000,
+            '万': 10000,
+            'k': 1000,
+            'K': 1000,
+            '千': 1000,
+        }.get(match.group(2), 1)
+        damage = int(match.group(1)) * unit
+        behalf = match.group(3) and int(match.group(3))
+        if behalf is not None:
+            qqid = behalf
+        if damage <= 0:
+            raise GroupError('伤害不能为空')
         is_member = Clan_member.get_or_none(
             group_id=group_id, qqid=qqid)
         if not is_member:
@@ -1090,19 +1127,25 @@ class ClanBattle:
                 'clan_group_id': group_id,
             }
         )[0]
-        self.GlobalDamage[qqid] = int(cmd)
-        txt_list=["已记录：{} 的伤害为 {}".format(user.nickname, cmd)]
+        self.GlobalDamage[int(qqid)] = damage
+        txt_list = "已记录：{} 的伤害为 {}".format(user.nickname, damage)
         return txt_list
 
     def _boss_damage_clean(self):
         self.GlobalDamage = {}
         return "已清空"
 
-    def getRe(self, ls):
+    def getRe(self, ls, group_id):
         i = 1
         re = ""
         for l in ls:
-            re += "#" + str(i) + " " + l[0] + ":" + str(l[1]) + "\n"
+            user = User.get_or_create(
+                qqid=str(l[0]),
+                defaults={
+                    'clan_group_id': group_id,
+                }
+            )[0]
+            re += "#" + str(i) + " " + user.nickname + ":" + str(l[1]) + "\n"
             i += 1
         return re
 
@@ -1362,13 +1405,11 @@ class ClanBattle:
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
             return '已记录SL'
         elif match_num == 17:
-            if cmd.startswith("合刀"):
-                cmd = cmd[2:]
-            self._boss_damage_store(cmd, group_id, user_id)
+            return self._boss_damage_store(cmd, group_id, user_id)
         elif match_num == 18:
-            self._boss_solve(group_id)
+            return self._boss_solve(group_id)
         elif match_num == 19:
-            self._boss_damage_clean()
+            return self._boss_damage_clean()
         elif 20 <= match_num <= 25:
             if len(cmd) != 2:
                 return
