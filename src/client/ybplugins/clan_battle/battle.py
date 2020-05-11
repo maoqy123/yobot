@@ -1085,7 +1085,10 @@ class ClanBattle:
             res = self.getRe(sorted_damage, group_id)
             txt_list += ("\n伤害排名:\n{}".format(res))
             num = 1
-            keys = map(lambda key, value: key, sorted_damage)
+            sorted_damage.reverse()
+            keys = []
+            for r in sorted_damage:
+                keys.append(r[0])
             solutions = self._solution(keys, int(remain), self.GlobalDamage)
             for solution in solutions:
                 txt_list += ("\n合刀解法{}:\n".format(num))
