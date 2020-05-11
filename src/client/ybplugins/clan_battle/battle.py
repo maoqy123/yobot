@@ -1105,7 +1105,7 @@ class ClanBattle:
                     if self.GlobalDamage[pid] > remain_num:
                         time = round(((1-remain_num / self.GlobalDamage[pid])*90+10), 2)
                         txt_list += ("返还时间{}".format(time))
-                        return
+                        break
                     remain_num -= self.GlobalDamage[pid]
                     inner_num += 1
                 num += 1
