@@ -1104,7 +1104,8 @@ class ClanBattle:
                     txt_list += ("{}出{}刀{}，".format(user.nickname, inner_num, self.GlobalDamage[pid]))
                     if self.GlobalDamage[pid] > remain_num:
                         time = round(((1-remain_num / self.GlobalDamage[pid])*90+10), 2)
-                        txt_list += ("返还时间{}".format(time))
+                        txt_list += ("返还时间{}s,".format(time))
+                        txt_list += ("价值估算{}伤害".format(time*(self.GlobalDamage[pid]/80)))
                         break
                     remain_num -= self.GlobalDamage[pid]
                     inner_num += 1
