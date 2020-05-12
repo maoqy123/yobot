@@ -66,6 +66,7 @@ class ClanBattle:
     EnglishCommands = {
         'status': 3,
         'score': 9,
+        'add': 17,
         'solution': 18,
         'clean': 19
     }
@@ -1129,6 +1130,7 @@ class ClanBattle:
         return ""
 
     def _boss_damage_store(self, cmd, group_id, qqid):
+        str.replace(cmd, "add", "合刀")
         match = re.match(r'^合刀 ?(\d+)([Ww万Kk千])? *(?:\[CQ:at,qq=(\d+)\])? *(昨[日天])? *(?:[\:：](.*))?$', cmd)
         if not match:
             return
