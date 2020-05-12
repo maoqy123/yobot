@@ -1101,13 +1101,17 @@ class ClanBattle:
                             'clan_group_id': group_id,
                         }
                     )[0]
-                    txt_list += ("{}出{}刀{}，".format(user.nickname, inner_num, self.GlobalDamage[pid]))
-                    if self.GlobalDamage[pid] > remain_num:
-                        time = round(((1-remain_num / self.GlobalDamage[pid])*90+10), 2)
-                        txt_list += ("返还时间{}s,".format(time))
-                        txt_list += ("价值估算{}伤害".format(round((time-10)*(self.GlobalDamage[pid]/80),2)))
+                    current_damage = self.GlobalDamage[pid]
+                    txt_list += ("{}出{}刀{}，".format(user.nickname, inner_num, current_damage))
+                    if current_damage >= remain_num:
+                        _time = round(((1-remain_num / current_damage)*90+10), 2)
+                        if 90 < _time:
+                            _time = 90
+                        txt_list += ("返还时间{}s,".format(_time))
+                        _time = _time - 10
+                        txt_list += ("价值估算{}伤害".format(round(_time*current_damage/80, 2)))
                         break
-                    remain_num -= self.GlobalDamage[pid]
+                    remain_num -= current_damage
                     inner_num += 1
                 num += 1
             if num == 1:
