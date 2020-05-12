@@ -64,11 +64,15 @@ class ClanBattle:
     }
 
     EnglishCommands = {
-        'status': 3,
-        'score': 9,
-        'add': 17,
-        'solution': 18,
-        'clean': 19
+        'report': '报刀',
+        'cancel': '撤销',
+        'tree': '挂树',
+        'kill': '尾刀',
+        'status': '状态',
+        'score': '报告',
+        'add': '合刀',
+        'solution': '计算',
+        'clean': '清空'
     }
 
     Server = {
@@ -1075,7 +1079,9 @@ class ClanBattle:
             return 0
         if len(cmd) < 2:
             return 0
-        return self.Commands.get(cmd[0:2]) if self.Commands.get(cmd[0:2], 0) >= self.EnglishCommands.get(cmd, 0) else self.EnglishCommands.get(cmd, 0)
+        for k, v in self.EnglishCommands.items():
+            str.replace(cmd, k, v)
+        return self.Commands.get(cmd[0:2], 0)
 
     def _boss_solve(self, group_id):
         group = Clan_group.get_or_none(group_id=group_id)
@@ -1130,7 +1136,6 @@ class ClanBattle:
         return ""
 
     def _boss_damage_store(self, cmd, group_id, qqid):
-        str.replace(cmd, "add", "合刀")
         match = re.match(r'^合刀 ?(\d+)([Ww万Kk千])? *(?:\[CQ:at,qq=(\d+)\])? *(昨[日天])? *(?:[\:：](.*))?$', cmd)
         if not match:
             return
@@ -1333,7 +1338,7 @@ class ClanBattle:
             )
             return '请登录面板操作：'+url
         elif match_num == 9:  # 报告
-            if len(cmd) != 2 and len(cmd) != 5:
+            if len(cmd) != 2:
                 return
             url = urljoin(
                 self.setting['public_address'],
