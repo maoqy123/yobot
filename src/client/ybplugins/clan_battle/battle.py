@@ -1109,7 +1109,6 @@ class ClanBattle:
                             _time = 90
                         txt_list += ("返还时间{}s,".format(_time))
                         _time = _time - 10
-                        txt_list += ("价值估算公式:时间{},伤害{}, 时间*伤害/80{}， format{}".format(_time, current_damage, _time*current_damage/80, round(_time*current_damage/80, 2)))
                         txt_list += ("价值估算{}伤害".format(round(_time*current_damage/80, 2)))
                         break
                     remain_num -= current_damage
