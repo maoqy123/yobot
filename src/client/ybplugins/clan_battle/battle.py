@@ -1080,7 +1080,6 @@ class ClanBattle:
         if len(cmd) < 2:
             return 0
         for k, v in self.EnglishCommands.items():
-            _logger.info("key:{},value:{}".format(k, v))
             cmd = str(cmd).replace(str(k), str(v))
         return self.Commands.get(cmd[0:2], 0)
 
@@ -1210,6 +1209,8 @@ class ClanBattle:
         if ctx['message_type'] != 'group':
             return None
         cmd = ctx['raw_message']
+        for k, v in self.EnglishCommands.items():
+            cmd = str(cmd).replace(str(k), str(v))
         group_id = ctx['group_id']
         user_id = ctx['user_id']
         if match_num == 1:  # 创建
