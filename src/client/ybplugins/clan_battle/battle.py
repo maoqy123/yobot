@@ -1080,7 +1080,8 @@ class ClanBattle:
         if len(cmd) < 2:
             return 0
         for k, v in self.EnglishCommands.items():
-            cmd = str(cmd).replace(k, v)
+            _logger.info("key:{},value:{}".format(k, v))
+            cmd = str(cmd).replace(str(k), str(v))
         return self.Commands.get(cmd[0:2], 0)
 
     def _boss_solve(self, group_id):
