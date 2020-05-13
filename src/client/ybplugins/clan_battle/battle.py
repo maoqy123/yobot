@@ -1111,6 +1111,8 @@ class ClanBattle:
                     current_damage = self.GlobalDamage[pid]
                     txt_list += ("{}出{}刀{}，".format(user.nickname, inner_num, current_damage))
                     if current_damage >= remain_num:
+                        if current_damage > remain:
+                            current_damage = remain
                         _time = round(((1-remain_num / current_damage)*90+10), 2)
                         if 90 < _time:
                             _time = 90
