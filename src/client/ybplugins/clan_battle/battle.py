@@ -1383,7 +1383,8 @@ class ClanBattle:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
-            self.GlobalDamage.pop(int(user_id))
+            if int(user_id) in self.GlobalDamage:
+                self.GlobalDamage.pop(int(user_id))
             return str(boss_status)+self._rubbish_talk(damage)
         elif match_num == 5:  # 尾刀
             match = re.match(
