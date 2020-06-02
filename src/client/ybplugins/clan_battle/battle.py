@@ -1191,7 +1191,7 @@ class ClanBattle:
                         _time = round(((1-remain_num / current_damage)*90+10), 2)
                         if 90 < _time:
                             _time = 90
-                        txt_list += ("白嫖伤害{},".format(remain))
+                        txt_list += ("白嫖伤害{},".format(remain_num))
                         txt_list += ("返还时间{}s,".format(_time))
                         #_time = _time - 10
                         #txt_list += ("价值估算{}伤害".format(round(_time*current_damage/80, 2)))
