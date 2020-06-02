@@ -61,6 +61,7 @@ class ClanBattle:
         '查3': 23,
         '查4': 24,
         '查5': 25,
+        '算刀': 26,
     }
 
     EnglishCommands = {
@@ -72,7 +73,8 @@ class ClanBattle:
         'score': '报告',
         'add': '合刀',
         'solution': '计算',
-        'clean': '清空'
+        'clean': '清空',
+        'all': '算刀'
     }
 
     Server = {
@@ -1189,9 +1191,10 @@ class ClanBattle:
                         _time = round(((1-remain_num / current_damage)*90+10), 2)
                         if 90 < _time:
                             _time = 90
+                        txt_list += ("白嫖伤害{},".format(remain))
                         txt_list += ("返还时间{}s,".format(_time))
-                        _time = _time - 10
-                        txt_list += ("价值估算{}伤害".format(round(_time*current_damage/80, 2)))
+                        #_time = _time - 10
+                        #txt_list += ("价值估算{}伤害".format(round(_time*current_damage/80, 2)))
                         break
                     remain_num -= current_damage
                     inner_num += 1
@@ -1200,14 +1203,29 @@ class ClanBattle:
                 txt_list += "\n没有找到合刀解法"
         return txt_list
 
+    def _boss_damage_all(self, group_id):
+        group = Clan_group.get_or_none(group_id=group_id)
+        remain = group.boss_health
+        txt_list = "Boss剩余血量:{}".format(remain)
+        if len(self.GlobalDamage) != 0:
+            sorted_damage = sorted(self.GlobalDamage.items(), key=lambda d: d[1], reverse=True)
+            res = self.getRe(sorted_damage, group_id)
+            txt_list += ("\n伤害排名:\n{}".format(res))
+            damage = 0
+            for l in sorted_damage:
+                damage += l[1]
+        return txt_list + ("\n总伤害:{}".format(damage))
+
     def _rubbish_talk(self, damage):
         s = "\n=================\n"
         if damage <= 0:
             return s + "崽种，又掉刀辣"
         if 0 < damage < 200000:
-            return s + "你在打nm呢，臭DD"
-        if 200000 <= damage < 300000:
-            return s + "弟弟刀？弟弟刀？弟弟刀？"
+            return s + "你在打nm呢"
+        if 2000000 >= damage > 1000000:
+            return s + "你🐂大了"
+        if damage > 2000000:
+            return s + "你就是内鬼？不装了？"
         return ""
 
     def _boss_damage_store(self, cmd, group_id, qqid):
@@ -1365,6 +1383,7 @@ class ClanBattle:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
+            self.GlobalDamage.pop(int(user_id))
             return str(boss_status)+self._rubbish_talk(damage)
         elif match_num == 5:  # 尾刀
             match = re.match(
@@ -1560,6 +1579,9 @@ class ClanBattle:
                 if m.get('message'):
                     reply += '：' + m['message']
             return reply
+        elif match_num == 26:
+            return self._boss_damage_all(group_id)
+
 
     def register_routes(self, app: Quart):
 
