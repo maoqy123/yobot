@@ -1430,9 +1430,9 @@ class ClanBattle:
         elif match_num == 6:  # 撤销
             match = re.match(
                 r'^撤销 ? *(?:\[CQ:at,qq=(\d+)\])$', cmd)
-            if not match:
-                return
-            behalf = match.group(1) and int(match.group(1))
+            behalf = None
+            if match:
+                behalf = match.group(1) and int(match.group(1))
             try:
                 boss_status = self.undo(group_id, user_id, behalf)
             except (GroupError, UserError) as e:
