@@ -152,16 +152,27 @@ class ClanBattle:
             ))
         return user.nickname or str(qqid)
 
-    def _get_group_previous_challenge(self, group: Clan_group):
+    def _get_group_previous_challenge(self, group: Clan_group, qqid: QQid = None):
         Clan_challenge_alias = Clan_challenge.alias()
-        query = Clan_challenge.select().where(
-            Clan_challenge.cid == Clan_challenge_alias.select(
-                peewee.fn.MAX(Clan_challenge_alias.cid)
-            ).where(
-                Clan_challenge_alias.gid == group.group_id,
-                Clan_challenge_alias.bid == group.battle_id,
+        if qqid is None:
+            query = Clan_challenge.select().where(
+                Clan_challenge.cid == Clan_challenge_alias.select(
+                    peewee.fn.MAX(Clan_challenge_alias.cid)
+                ).where(
+                    Clan_challenge_alias.gid == group.group_id,
+                    Clan_challenge_alias.bid == group.battle_id,
+                )
             )
-        )
+        else:
+            query = Clan_challenge.select().where(
+                Clan_challenge.cid == Clan_challenge_alias.select(
+                    peewee.fn.MAX(Clan_challenge_alias.cid)
+                ).where(
+                    Clan_challenge_alias.gid == group.group_id,
+                    Clan_challenge_alias.bid == group.battle_id,
+                    Clan_challenge_alias.qqid == qqid
+                )
+            )
         try:
             return query.get()
         except peewee.DoesNotExist:
@@ -489,7 +500,7 @@ class ClanBattle:
 
         return status
 
-    def undo(self, group_id: Groupid, qqid: QQid) -> BossStatus:
+    def undo(self, group_id: Groupid, qqid: QQid, behalfed: Optional[QQid] = None) -> BossStatus:
         """
         rollback last challenge record.
 
@@ -506,7 +517,10 @@ class ClanBattle:
                 'clan_group_id': group_id,
             }
         )[0]
-        last_challenge = self._get_group_previous_challenge(group)
+        if behalfed is not None:
+            last_challenge = self._get_group_previous_challenge(group, behalfed)
+        else:
+            last_challenge = self._get_group_previous_challenge(group)
         if last_challenge is None:
             raise GroupError('本群无出刀记录')
         if (last_challenge.qqid != qqid) and (user.authority_group >= 100):
@@ -1413,10 +1427,13 @@ class ClanBattle:
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
             return str(boss_status)
         elif match_num == 6:  # 撤销
-            if cmd != '撤销':
+            match = re.match(
+                r'^撤销 ? *(?:\[CQ:at,qq=(\d+)\])$', cmd)
+            if not match:
                 return
+            behalf = match.group(1) and int(match.group(1))
             try:
-                boss_status = self.undo(group_id, user_id)
+                boss_status = self.undo(group_id, user_id, behalf)
             except (GroupError, UserError) as e:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
