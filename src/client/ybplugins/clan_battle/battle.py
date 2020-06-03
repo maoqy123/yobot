@@ -519,16 +519,17 @@ class ClanBattle:
         )[0]
         if behalfed is not None:
             last_challenge = self._get_group_previous_challenge(group, behalfed)
+            group.boss_health += last_challenge.challenge_damage
         else:
             last_challenge = self._get_group_previous_challenge(group)
+            group.boss_cycle = last_challenge.boss_cycle
+            group.boss_num = last_challenge.boss_num
+            group.boss_health = (last_challenge.boss_health_ramain
+                                 + last_challenge.challenge_damage)
         if last_challenge is None:
             raise GroupError('本群无出刀记录')
         if (last_challenge.qqid != qqid) and (user.authority_group >= 100):
             raise UserError('无权撤销')
-        group.boss_cycle = last_challenge.boss_cycle
-        group.boss_num = last_challenge.boss_num
-        group.boss_health = (last_challenge.boss_health_ramain
-                             + last_challenge.challenge_damage)
         last_challenge.delete_instance()
         group.save()
 
