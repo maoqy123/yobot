@@ -17,7 +17,9 @@ from ..templating import render_template
 from ..web_util import async_cached_func
 from ..ybdata import (Clan_challenge, Clan_group, Clan_member, Clan_subscribe,
                       User)
-from .exception import GroupError, InputError, UserError
+from .exception import (
+    ClanBattleError, GroupError, GroupNotExist, InputError, UserError,
+    UserNotInGroup)
 from .typing import BossStatus, ClanBattleReport, Groupid, Pcr_date, QQid
 from .util import atqq, pcr_datetime, pcr_timestamp, timed_cached_func
 
@@ -201,7 +203,7 @@ class ClanBattle:
         except Exception as e:
             _logger.exception('获取群成员列表错误'+str(type(e))+str(e))
             asyncio.ensure_future(self.api.send_group_msg(
-                group_id=group_id, message='获取群成员错误，请查看日志'))
+                group_id=group_id, message='获取群成员错误，这可能是缓存问题，请稍后再试'))
             return []
         return group_member_list
 
@@ -346,7 +348,7 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         boss_summary = (
             f'现在{group.boss_cycle}周目，{group.boss_num}号boss\n'
             f'生命值{group.boss_health:,}'
@@ -383,7 +385,7 @@ class ClanBattle:
             raise InputError('伤害不可以是负数')
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         if (not defeat) and (damage >= group.boss_health):
             raise InputError('伤害超出剩余血量，如击败请使用尾刀')
         behalf = None
@@ -399,7 +401,7 @@ class ClanBattle:
         is_member = Clan_member.get_or_none(
             group_id=group_id, qqid=qqid)
         if not is_member:
-            raise GroupError('未加入公会，请先发送“加入公会”')
+            raise UserNotInGroup
         d, t = pcr_datetime(area=group.game_server)
         if previous_day:
             today_count = Clan_challenge.select().where(
@@ -492,7 +494,9 @@ class ClanBattle:
             0,
             msg,
         )
-        self._boss_status[group_id].set_result(status)
+        self._boss_status[group_id].set_result(
+            (self._boss_data_dict(group), msg)
+        )
         self._boss_status[group_id] = asyncio.get_event_loop().create_future()
 
         if defeat:
@@ -510,7 +514,7 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         user = User.get_or_create(
             qqid=qqid,
             defaults={
@@ -541,7 +545,9 @@ class ClanBattle:
             0,
             f'{nik}的出刀记录已被撤销',
         )
-        self._boss_status[group_id].set_result(status)
+        self._boss_status[group_id].set_result(
+            (self._boss_data_dict(group), status.info)
+        )
         self._boss_status[group_id] = asyncio.get_event_loop().create_future()
         return status
 
@@ -565,7 +571,7 @@ class ClanBattle:
             raise InputError('boss生命值不能为负')
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         if cycle is not None:
             group.boss_cycle = cycle
         if boss_num is not None:
@@ -586,7 +592,9 @@ class ClanBattle:
             0,
             'boss状态已修改',
         )
-        self._boss_status[group_id].set_result(status)
+        self._boss_status[group_id].set_result(
+            (self._boss_data_dict(group), status.info)
+        )
         self._boss_status[group_id] = asyncio.get_event_loop().create_future()
         return status
 
@@ -604,7 +612,7 @@ class ClanBattle:
             raise InputError(f'不存在{game_server}游戏服务器')
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         group.game_server = game_server
         group.save()
 
@@ -620,7 +628,7 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         counts = []
         for c in Clan_challenge.select(
             Clan_challenge.bid,
@@ -648,7 +656,7 @@ class ClanBattle:
     #     """
     #     group = Clan_group.get_or_none(group_id=group_id)
     #     if group is None:
-    #         raise GroupError('本群未初始化，请发送“创建X服公会”')
+    #         raise GroupNotExist
     #     group.boss_cycle = 1
     #     group.boss_num = 1
     #     group.boss_health = self.bossinfo[group.game_server][0][0]
@@ -670,7 +678,7 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         group.boss_cycle = 1
         group.boss_num = 1
         group.boss_health = self.bossinfo[group.game_server][0][0]
@@ -699,7 +707,7 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         group.battle_id = battle_id
         last_challenge = self._get_group_previous_challenge(group)
         if last_challenge is None:
@@ -779,7 +787,7 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         user = User.get_or_none(qqid=qqid)
         if user is None:
             raise GroupError('请先加入公会')
@@ -855,7 +863,7 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         if boss_num is None:
             boss_num = group.boss_num
         notice = []
@@ -891,12 +899,12 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         user = User.get_or_none(qqid=qqid)
         if user is None:
-            raise UserError('请先加入公会')
+            raise UserNotInGroup
         if (appli_type != 1) and (extra_msg is None):
-            raise UserError('锁定boss时必须留言')
+            raise InputError('锁定boss时必须留言')
         if group.challenging_member_qq_id is not None:
             nik = self._get_nickname_by_qqid(
                 group.challenging_member_qq_id,
@@ -922,7 +930,9 @@ class ClanBattle:
             qqid,
             info,
         )
-        self._boss_status[group_id].set_result(status)
+        self._boss_status[group_id].set_result(
+            (self._boss_data_dict(group), status.info)
+        )
         self._boss_status[group_id] = asyncio.get_event_loop().create_future()
         return status
 
@@ -937,7 +947,7 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         if group.challenging_member_qq_id is None:
             raise GroupError('boss没有锁定')
         user = User.get_or_create(
@@ -969,11 +979,13 @@ class ClanBattle:
             0,
             'boss挑战已可申请',
         )
-        self._boss_status[group_id].set_result(status)
+        self._boss_status[group_id].set_result(
+            (self._boss_data_dict(group), status.info)
+        )
         self._boss_status[group_id] = asyncio.get_event_loop().create_future()
         return status
 
-    def save_slot(self, group_id: Groupid, qqid: QQid, todaystatus: Optional[bool] = True):
+    def save_slot(self, group_id: Groupid, qqid: QQid, todaystatus: bool = True, only_check: bool = False):
         """
         record today's save slot
 
@@ -983,12 +995,14 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         membership = Clan_member.get_or_none(
             group_id=group_id, qqid=qqid)
         if membership is None:
-            raise UserError('未加入公会，请先发送“加入公会”')
+            raise UserNotInGroup
         today, _ = pcr_datetime(group.game_server)
+        if only_check:
+            return (membership.last_save_slot == today)
         if todaystatus:
             if membership.last_save_slot == today:
                 raise UserError('您今天已经存在SL记录了')
@@ -1013,7 +1027,7 @@ class ClanBattle:
         # refresh
         self.get_member_list(group_id, nocache=True)
 
-        return
+        return todaystatus
 
     @timed_cached_func(max_len=64, max_age_seconds=10, ignore_self=True)
     def get_report(self,
@@ -1036,7 +1050,7 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         report = []
         expressions = [
             Clan_challenge.gid == group_id,
@@ -1097,7 +1111,7 @@ class ClanBattle:
         """
         group = Clan_group.get_or_none(group_id=group_id)
         if group is None:
-            raise GroupError('本群未初始化，请发送“创建X服公会”')
+            raise GroupNotExist
         expressions = [
             Clan_challenge.gid == group_id,
         ]
@@ -1328,7 +1342,7 @@ class ClanBattle:
             game_server = self.Server.get(match.group(1), 'cn')
             try:
                 self.creat_group(group_id, game_server)
-            except GroupError as e:
+            except ClanBattleError as e:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
@@ -1361,7 +1375,7 @@ class ClanBattle:
                 return
             try:
                 boss_summary = self.boss_status_summary(group_id)
-            except GroupError as e:
+            except ClanBattleError as e:
                 return str(e)
             return boss_summary
         elif match_num == 4:  # 报刀
@@ -1394,7 +1408,7 @@ class ClanBattle:
                     behalf,
                     extra_msg=extra_msg,
                     previous_day=previous_day)
-            except (InputError, GroupError) as e:
+            except ClanBattleError as e:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
@@ -1422,7 +1436,7 @@ class ClanBattle:
                     behalf,
                     extra_msg=extra_msg,
                     previous_day=previous_day)
-            except (InputError, GroupError) as e:
+            except ClanBattleError as e:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
@@ -1435,7 +1449,7 @@ class ClanBattle:
                 behalf = match.group(1) and int(match.group(1))
             try:
                 boss_status = self.undo(group_id, user_id, behalf)
-            except (GroupError, UserError) as e:
+            except ClanBattleError as e:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
@@ -1485,7 +1499,7 @@ class ClanBattle:
                     extra_msg = None
             try:
                 self.add_subscribe(group_id, user_id, boss_num, extra_msg)
-            except (GroupError, UserError) as e:
+            except ClanBattleError as e:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
@@ -1501,7 +1515,7 @@ class ClanBattle:
                     extra_msg = None
             try:
                 self.add_subscribe(group_id, user_id, 0, extra_msg)
-            except (GroupError, UserError) as e:
+            except ClanBattleError as e:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
@@ -1526,7 +1540,7 @@ class ClanBattle:
             try:
                 boss_status = self.apply_for_challenge(
                     group_id, user_id, extra_msg=extra_msg, appli_type=appli_type)
-            except GroupError as e:
+            except ClanBattleError as e:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
@@ -1553,7 +1567,7 @@ class ClanBattle:
                 return
             try:
                 boss_status = self.cancel_application(group_id, user_id)
-            except GroupError as e:
+            except ClanBattleError as e:
                 _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
                 return str(e)
             _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
@@ -1570,15 +1584,21 @@ class ClanBattle:
             )
             return f'公会战面板：\n{url}\n建议添加到浏览器收藏夹或桌面快捷方式'
         elif match_num == 16:  # SL
-            if len(cmd) != 2:
-                return
-            try:
-                self.save_slot(group_id, user_id)
-            except (GroupError, UserError) as e:
-                _logger.info('群聊 失败 {} {} {}'.format(user_id, group_id, cmd))
-                return str(e)
-            _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
-            return '已记录SL'
+            if len(cmd) == 2:
+                try:
+                    self.save_slot(group_id, user_id)
+                except ClanBattleError as e:
+                    _logger.info('群聊 失败 {} {} {}'.format(
+                        user_id, group_id, cmd))
+                    return str(e)
+                _logger.info('群聊 成功 {} {} {}'.format(user_id, group_id, cmd))
+                return '已记录SL'
+            elif cmd[2:].strip() in ['?', '？']:
+                sl_ed = self.save_slot(group_id, user_id, only_check=True)
+                if sl_ed:
+                    return '今日已使用SL'
+                else:
+                    return '今日未使用SL'
         elif match_num == 17:
             return self._boss_damage_store(cmd, group_id, user_id)
         elif match_num == 18:
@@ -1746,13 +1766,13 @@ class ClanBattle:
                     )
                 elif action == 'update_boss':
                     try:
-                        status = await asyncio.wait_for(
+                        bossData, notice = await asyncio.wait_for(
                             asyncio.shield(self._boss_status[group_id]),
                             timeout=30)
                         return jsonify(
                             code=0,
-                            bossData=self._boss_data_dict(group),
-                            notice=status.info,
+                            bossData=bossData,
+                            notice=notice,
                         )
                     except asyncio.TimeoutError:
                         return jsonify(
@@ -1770,7 +1790,7 @@ class ClanBattle:
                                                     extra_msg=payload.get(
                                                         'message'),
                                                     )
-                        except InputError as e:
+                        except ClanBattleError as e:
                             _logger.info('网页 失败 {} {} {}'.format(
                                 user_id, group_id, action))
                             return jsonify(
@@ -1800,7 +1820,7 @@ class ClanBattle:
                                                     extra_msg=payload.get(
                                                         'message'),
                                                     )
-                        except InputError as e:
+                        except ClanBattleError as e:
                             _logger.info('网页 失败 {} {} {}'.format(
                                 user_id, group_id, action))
                             return jsonify(
@@ -1824,7 +1844,7 @@ class ClanBattle:
                     try:
                         status = self.undo(
                             group_id, user_id)
-                    except (UserError, GroupError) as e:
+                    except ClanBattleError as e:
                         _logger.info('网页 失败 {} {} {}'.format(
                             user_id, group_id, action))
                         return jsonify(
@@ -1851,7 +1871,7 @@ class ClanBattle:
                             extra_msg=payload['extra_msg'],
                             appli_type=payload['appli_type'],
                         )
-                    except (GroupError, UserError) as e:
+                    except ClanBattleError as e:
                         _logger.info('网页 失败 {} {} {}'.format(
                             user_id, group_id, action))
                         return jsonify(
@@ -1875,7 +1895,7 @@ class ClanBattle:
                     try:
                         status = self.cancel_application(
                             group_id, user_id)
-                    except GroupError as e:
+                    except ClanBattleError as e:
                         _logger.info('网页 失败 {} {} {}'.format(
                             user_id, group_id, action))
                         return jsonify(
@@ -1900,7 +1920,7 @@ class ClanBattle:
                     try:
                         self.save_slot(group_id, user_id,
                                        todaystatus=todaystatus)
-                    except (GroupError, UserError) as e:
+                    except ClanBattleError as e:
                         _logger.info('网页 失败 {} {} {}'.format(
                             user_id, group_id, action))
                         return jsonify(
@@ -1935,7 +1955,7 @@ class ClanBattle:
                             boss_num,
                             message,
                         )
-                    except UserError as e:
+                    except ClanBattleError as e:
                         _logger.info('网页 失败 {} {} {}'.format(
                             user_id, group_id, action))
                         return jsonify(
@@ -2015,7 +2035,7 @@ class ClanBattle:
                             boss_num=payload['boss_num'],
                             boss_health=payload['health'],
                         )
-                    except InputError as e:
+                    except ClanBattleError as e:
                         _logger.info('网页 失败 {} {} {}'.format(
                             user_id, group_id, action))
                         return jsonify(code=10, message=str(e))
@@ -2063,8 +2083,8 @@ class ClanBattle:
             except KeyError as e:
                 _logger.error(e)
                 return jsonify(code=31, message='missing key: '+str(e))
-            # except asyncio.CancelledError as e:
-            #     raise e from e
+            except asyncio.CancelledError:
+                pass
             except Exception as e:
                 _logger.exception(e)
                 return jsonify(code=40, message='server error')
